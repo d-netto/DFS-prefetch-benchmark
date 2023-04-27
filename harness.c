@@ -283,7 +283,6 @@ int main(int argc, char **argv)
 
     if (prefetch && lazy) {
         printf("Running lazy prefetch DFS\n");
-        /* Eager DFS */
         node_t *head = build_binary_tree(NELEM);
         for (int i = 0; i < NROUNDS; ++i) {
             printf("iter=%d\n", i);
@@ -293,7 +292,6 @@ int main(int argc, char **argv)
     }
     else if (lazy) {
         printf("Running lazy DFS\n");
-        /* Lazy DFS */
         node_t *head = build_binary_tree(NELEM);
         for (int i = 0; i < NROUNDS; ++i) {
             printf("iter=%d\n", i);
@@ -303,7 +301,6 @@ int main(int argc, char **argv)
     }
     else if (prefetch) {
         printf("Running eager prefetch DFS\n");
-        /* Eager DFS */
         node_t *head = build_binary_tree(NELEM);
         for (int i = 0; i < NROUNDS; ++i) {
             printf("iter=%d\n", i);
@@ -313,7 +310,6 @@ int main(int argc, char **argv)
     }
     else {
         printf("Running eager DFS\n");
-        /* Eager DFS */
         node_t *head = build_binary_tree(NELEM);
         for (int i = 0; i < NROUNDS; ++i) {
             printf("iter=%d\n", i);
