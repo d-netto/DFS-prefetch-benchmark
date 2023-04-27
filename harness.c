@@ -2,15 +2,19 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+size_t expected = 0;
 
 typedef struct _node_t {
     struct _node_t *left;
     struct _node_t *right;
-    uint64_t v;
+    uint32_t v;
     uint8_t set;
 } node_t;
 
-node_t *create_node(size_t v)
+node_t *create_node(uint32_t v)
 {
     node_t *n = (node_t *)malloc(sizeof(node_t));
     n->left = n->right = NULL;
@@ -21,7 +25,15 @@ node_t *create_node(size_t v)
 
 void insert_tree(node_t *root, node_t *node)
 {
-    if (root->v <= node->v) {
+    if (node->v < root->v) {
+        if (root->left == NULL) {
+            root->left = node;
+        }
+        else {
+            insert_tree(root->left, node);
+        }
+    }
+    else {
         if (root->right == NULL) {
             root->right = node;
         }
@@ -29,21 +41,17 @@ void insert_tree(node_t *root, node_t *node)
             insert_tree(root->right, node);
         }
     }
-    else {
-        if (root->left == NULL) {
-            node->left = node;
-        }
-        else {
-            insert_tree(root->left, node);
-        }
-    }
 }
 
 node_t *build_binary_tree(size_t nelem)
 {
-    node_t *root = create_node(0);
+    int j = rand() % nelem;
+    node_t *root = create_node(j);
+    expected += j;
     for (size_t i = 1; i < nelem; ++i) {
-        node_t *node = create_node(i);
+        j = rand() % nelem;
+        node_t *node = create_node(j);
+        expected += j;
         insert_tree(root, node);
     }
     return root;
@@ -80,11 +88,11 @@ node_t *worklist_pop(worklist_t *wl)
     is implemented in Julia in the sense that we fetch
     the object tag `node->set` before enqueueing it
 */
-size_t dfs_eager(node_t *head, size_t nelem)
+size_t dfs_eager(node_t *head, size_t nelem, int set)
 {
     size_t count = 0;
     worklist_t wl = create_worklist(nelem);
-    head->set = 1;
+    head->set = set;
     count += head->v;
     worklist_push(&wl, head);
     while (1) {
@@ -93,15 +101,15 @@ size_t dfs_eager(node_t *head, size_t nelem)
             break;
         }
         if (node->left != NULL) {
-            if (!node->left->set) {
-                node->left->set = 1;
+            if (node->left->set != set) {
+                node->left->set = set;
                 count += node->left->v;
                 worklist_push(&wl, node->left);
             }
         }
         if (node->right != NULL) {
-            if (!node->right->set) {
-                node->right->set = 1;
+            if (node->right->set != set) {
+                node->right->set = set;
                 count += node->right->v;
                 worklist_push(&wl, node->right);
             }
@@ -115,7 +123,7 @@ size_t dfs_eager(node_t *head, size_t nelem)
     and didn't have to reconstruct the `remset` on every GC. Note that
     we only fetch the object tag when dequeueing it
 */
-size_t dfs_lazy(node_t *head, size_t nelem)
+size_t dfs_lazy(node_t *head, size_t nelem, int set)
 {
     size_t count = 0;
     worklist_t wl = create_worklist(nelem);
@@ -125,10 +133,10 @@ size_t dfs_lazy(node_t *head, size_t nelem)
         if (node == NULL) {
             break;
         }
-        if (node->set) {
+        if (node->set == set) {
             continue;
         }
-        node->set = 1;
+        node->set = set;
         count += node->v;
         if (node->left != NULL) {
             worklist_push(&wl, node->left);
@@ -140,20 +148,177 @@ size_t dfs_lazy(node_t *head, size_t nelem)
     return count;
 }
 
-#define NELEM (1ull << 16)
+/*
+    Now, let's add a prefetch buffer in front of the mark-stack
+*/
+
+#define PREFETCH_BUFFER_CAPACITY        128
+#define PREFETCH_BUFFER_WORTH_SIZE      32
+
+typedef struct {
+    node_t *buffer[PREFETCH_BUFFER_CAPACITY];
+    int32_t top;
+    int32_t bottom;
+} prefetch_buffer_t;
+
+typedef struct {
+    prefetch_buffer_t prefetch_buffer;
+    worklist_t worklist;
+} prefetch_worklist_t;
+
+prefetch_worklist_t create_prefetch_worklist(size_t nelem)
+{
+    node_t **buffer = (node_t **)malloc(sizeof(node_t *) * nelem);
+    worklist_t wl = {buffer, 0, nelem}; 
+    prefetch_worklist_t pfwl;
+    pfwl.prefetch_buffer.bottom = pfwl.prefetch_buffer.top = 0;
+    pfwl.worklist = wl;
+    return pfwl;
+}
+
+void prefetch_worklist_push(prefetch_worklist_t *pfwl, node_t *node)
+{
+    /* Prefetch buffer overflowed */
+    if (pfwl->prefetch_buffer.bottom - pfwl->prefetch_buffer.top >= PREFETCH_BUFFER_CAPACITY) {
+        pfwl->worklist.buffer[pfwl->worklist.bottom++] = node;
+    }
+    else {
+        __builtin_prefetch(node);
+        pfwl->prefetch_buffer.buffer[pfwl->prefetch_buffer.bottom++ % PREFETCH_BUFFER_CAPACITY] = node;
+    }
+}
+
+node_t *prefetch_worklist_pop(prefetch_worklist_t *pfwl)
+{
+    node_t *n = NULL;
+    /* Element was prefetched a while back and the memory load may already be satisfied */
+    if (pfwl->prefetch_buffer.bottom - pfwl->prefetch_buffer.top >= PREFETCH_BUFFER_WORTH_SIZE) {
+        n = pfwl->prefetch_buffer.buffer[pfwl->prefetch_buffer.top++ % PREFETCH_BUFFER_CAPACITY];
+    }
+    /* Try to pop from worklist if non-empty */
+    else if (pfwl->worklist.bottom > 0) {
+        n = pfwl->worklist.buffer[--pfwl->worklist.bottom];
+    }
+    /* Try to pop from prefetch buffer if non-empty */
+    else if (pfwl->prefetch_buffer.bottom > pfwl->prefetch_buffer.top) {
+        n = pfwl->prefetch_buffer.buffer[pfwl->prefetch_buffer.top++ % PREFETCH_BUFFER_CAPACITY];
+    }
+    return n;
+}
+
+size_t dfs_prefetch_eager(node_t *head, size_t nelem, int set)
+{
+    size_t count = 0;
+     prefetch_worklist_t pfwl = create_prefetch_worklist(nelem);
+    head->set = set;
+    count += head->v;
+    prefetch_worklist_push(&pfwl, head);
+    while (1) {
+        node_t *node = prefetch_worklist_pop(&pfwl);
+        if (node == NULL) {
+            break;
+        }
+        if (node->left != NULL) {
+            if (node->left->set != set) {
+                node->left->set = set;
+                count += node->left->v;
+                prefetch_worklist_push(&pfwl, node->left);
+            }
+        }
+        if (node->right != NULL) {
+            if (node->right->set != set) {
+                node->right->set = set;
+                count += node->right->v;
+                prefetch_worklist_push(&pfwl, node->right);
+            }
+        }
+    }
+    return count;
+}
+
+size_t dfs_prefetch_lazy(node_t *head, size_t nelem, int set)
+{
+    size_t count = 0;
+    prefetch_worklist_t pfwl = create_prefetch_worklist(nelem);
+    prefetch_worklist_push(&pfwl, head);
+    while (1) {
+        node_t *node = prefetch_worklist_pop(&pfwl);
+        if (node == NULL) {
+            break;
+        }
+        if (node->set == set) {
+            continue;
+        }
+        node->set = set;
+        count += node->v;
+        if (node->left != NULL) {
+            prefetch_worklist_push(&pfwl, node->left);
+        }
+        if (node->right != NULL) {
+            prefetch_worklist_push(&pfwl, node->right);
+        }
+    }
+    return count;
+}
+
+#define NELEM (1ull << 20)
+#define NROUNDS 100
 
 int main(int argc, char **argv)
 {
-    size_t expected = (NELEM * (NELEM - 1)) / 2;
+    time_t t;
+    srand((unsigned) time(&t));
 
-    /* Eager DFS */
-    node_t *head = build_binary_tree(NELEM);
-    size_t count1 = dfs_eager(head, NELEM);
-    assert(count1 == expected);
+    int lazy = 0;
+    int prefetch = 0;
 
-    /* Lazy DFS */
-    head = build_binary_tree(NELEM);
-    size_t count2 = dfs_lazy(head, NELEM);
-    assert(count2 == expected);
-    return 0;
+    if (argc >= 2) {
+        lazy |= (strcmp(argv[1], "lazy") == 0);
+        prefetch |= (strcmp(argv[1], "prefetch") == 0);
+    }
+    if (argc == 3) {
+        lazy |= (strcmp(argv[2], "lazy") == 0);
+        prefetch |= (strcmp(argv[2], "prefetch") == 0);
+    }
+
+    if (prefetch && lazy) {
+        printf("Running lazy prefetch DFS\n");
+        /* Eager DFS */
+        node_t *head = build_binary_tree(NELEM);
+        for (int i = 0; i < NROUNDS; ++i) {
+            printf("iter=%d\n", i);
+            size_t count = dfs_prefetch_lazy(head, NELEM, i % 2 == 0);
+            assert(count == expected);
+        }
+    }
+    else if (lazy) {
+        printf("Running lazy DFS\n");
+        /* Lazy DFS */
+        node_t *head = build_binary_tree(NELEM);
+        for (int i = 0; i < NROUNDS; ++i) {
+            printf("iter=%d\n", i);
+            size_t count = dfs_lazy(head, NELEM, i % 2 == 0);
+            assert(count == expected);
+        }
+    }
+    else if (prefetch) {
+        printf("Running eager prefetch DFS\n");
+        /* Eager DFS */
+        node_t *head = build_binary_tree(NELEM);
+        for (int i = 0; i < NROUNDS; ++i) {
+            printf("iter=%d\n", i);
+            size_t count = dfs_prefetch_eager(head, NELEM, i % 2 == 0);
+            assert(count == expected);
+        }
+    }
+    else {
+        printf("Running eager DFS\n");
+        /* Eager DFS */
+        node_t *head = build_binary_tree(NELEM);
+        for (int i = 0; i < NROUNDS; ++i) {
+            printf("iter=%d\n", i);
+            size_t count = dfs_eager(head, NELEM, i % 2 == 0);
+            assert(count == expected);
+        }
+    }
 }
