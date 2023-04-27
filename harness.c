@@ -5,7 +5,7 @@
 #include <string.h>
 #include <time.h>
 
-size_t expected = 0;
+size_t expected;
 
 typedef struct _node_t {
     struct _node_t *left;
@@ -209,7 +209,7 @@ node_t *prefetch_worklist_pop(prefetch_worklist_t *pfwl)
 size_t dfs_prefetch_eager(node_t *head, size_t nelem, int set)
 {
     size_t count = 0;
-     prefetch_worklist_t pfwl = create_prefetch_worklist(nelem);
+    prefetch_worklist_t pfwl = create_prefetch_worklist(nelem);
     head->set = set;
     count += head->v;
     prefetch_worklist_push(&pfwl, head);
