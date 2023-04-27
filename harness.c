@@ -261,7 +261,7 @@ size_t dfs_prefetch_lazy(node_t *head, size_t nelem, int set)
     return count;
 }
 
-#define NELEM (1ull << 20)
+#define NELEM (1ull << 22)
 #define NROUNDS 100
 
 int main(int argc, char **argv)
