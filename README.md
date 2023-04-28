@@ -41,18 +41,18 @@ Flags:                           fp asimd evtstrm aes pmull sha1 sha2 crc32 atom
 ```
 Performance counter stats for './a.out':
 
-       29550871450      cache-references                                            
-         750297750      cache-misses              #    2.539 % of all cache refs    
-      156502653804      cycles                                                      
-       36655683224      instructions              #    0.23  insn per cycle         
+        6068509337      cache-references                                            
+         750750521      cache-misses              #   12.371 % of all cache refs    
+       81540705818      cycles                                                      
+        9797467689      instructions              #    0.12  insn per cycle         
    <not supported>      branches                                                    
              32913      faults                                                      
-                 2      migrations                                                  
+                 0      migrations                                                  
 
-      52.232894828 seconds time elapsed
+      27.203115072 seconds time elapsed
 
-      52.125446000 seconds user
-       0.067960000 seconds sys
+      27.085055000 seconds user
+       0.099944000 seconds sys
 ```
 
 ## Lazy
@@ -60,18 +60,18 @@ Performance counter stats for './a.out':
 ```
 Performance counter stats for './a.out lazy':
 
-       29913972501      cache-references                                            
-         750437068      cache-misses              #    2.509 % of all cache refs    
-      161009044446      cycles                                                      
-       35272892298      instructions              #    0.22  insn per cycle         
+        6645977811      cache-references                                            
+         750824008      cache-misses              #   11.297 % of all cache refs    
+       87335085998      cycles                                                      
+       11182745035      instructions              #    0.13  insn per cycle         
    <not supported>      branches                                                    
-             32914      faults                                                      
+             32915      faults                                                      
                  0      migrations                                                  
 
-      53.713442143 seconds time elapsed
+      29.135343833 seconds time elapsed
 
-      53.604904000 seconds user
-       0.071952000 seconds sys
+      29.017391000 seconds user
+       0.099949000 seconds sys
 ```
 
 ## Eager prefetch
@@ -79,18 +79,18 @@ Performance counter stats for './a.out lazy':
 ```
 Performance counter stats for './a.out prefetch':
 
-       31499359157      cache-references                                            
-         609613723      cache-misses              #    1.935 % of all cache refs    
-      138173538393      cycles                                                      
-       42951408099      instructions              #    0.31  insn per cycle         
+        4832982224      cache-references                                            
+         562468244      cache-misses              #   11.638 % of all cache refs    
+       46866037671      cycles                                                      
+       12711150924      instructions              #    0.27  insn per cycle         
    <not supported>      branches                                                    
-             33013      faults                                                      
+             33112      faults                                                      
                  0      migrations                                                  
 
-      46.098657143 seconds time elapsed
+      15.643485487 seconds time elapsed
 
-      45.988090000 seconds user
-       0.075947000 seconds sys
+      15.536831000 seconds user
+       0.095955000 seconds sys
 ```
 
 ## Lazy prefetch
@@ -98,16 +98,16 @@ Performance counter stats for './a.out prefetch':
 ```
 Performance counter stats for './a.out prefetch lazy':
 
-       29991722986      cache-references                                            
-         438678779      cache-misses              #    1.463 % of all cache refs    
-       99406304430      cycles                                                      
-       41624984035      instructions              #    0.42  insn per cycle         
+        4584468659      cache-references                                            
+         361312504      cache-misses              #    7.881 % of all cache refs    
+       38257454491      cycles                                                      
+       13200558389      instructions              #    0.35  insn per cycle         
    <not supported>      branches                                                    
-             33114      faults                                                      
+             33116      faults                                                      
                  0      migrations                                                  
 
-      33.168372392 seconds time elapsed
+      12.772190360 seconds time elapsed
 
-      33.076813000 seconds user
-       0.067952000 seconds sys
+      12.731075000 seconds user
+       0.031977000 seconds sys
 ```
