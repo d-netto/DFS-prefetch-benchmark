@@ -195,13 +195,19 @@ node_t *prefetch_worklist_pop(prefetch_worklist_t *pfwl)
     if (pfwl->prefetch_buffer.bottom - pfwl->prefetch_buffer.top >= PREFETCH_BUFFER_WORTH_SIZE) {
         n = pfwl->prefetch_buffer.buffer[pfwl->prefetch_buffer.top++ % PREFETCH_BUFFER_CAPACITY];
     }
-    /* Try to pop from worklist if non-empty */
-    else if (pfwl->worklist.bottom > 0) {
-        n = pfwl->worklist.buffer[--pfwl->worklist.bottom];
-    }
-    /* Try to pop from prefetch buffer if non-empty */
-    else if (pfwl->prefetch_buffer.bottom > pfwl->prefetch_buffer.top) {
-        n = pfwl->prefetch_buffer.buffer[pfwl->prefetch_buffer.top++ % PREFETCH_BUFFER_CAPACITY];
+    else {
+        /* Fill up prefetch buffer */
+        while (pfwl->prefetch_buffer.bottom - pfwl->prefetch_buffer.top < PREFETCH_BUFFER_WORTH_SIZE) {
+            node_t *n2 = worklist_pop(&pfwl->worklist);
+            if (n2 == NULL)
+                break;
+            /* Since `pfwl->prefetch_buffer.bottom - pfwl->prefetch_buffer.top < PREFETCH_BUFFER_WORTH_SIZE`,
+               this will push into the prefetch buffer */
+            prefetch_worklist_push(pfwl, n2);
+        }
+        if (pfwl->prefetch_buffer.bottom > pfwl->prefetch_buffer.top) {
+            n = pfwl->prefetch_buffer.buffer[pfwl->prefetch_buffer.top++ % PREFETCH_BUFFER_CAPACITY];
+        }
     }
     return n;
 }
