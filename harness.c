@@ -194,6 +194,10 @@ node_t *prefetch_worklist_pop(prefetch_worklist_t *pfwl)
     /* Element was prefetched a while back and the memory load may already be satisfied */
     if (pfwl->prefetch_buffer.bottom - pfwl->prefetch_buffer.top >= PREFETCH_BUFFER_WORTH_SIZE) {
         n = pfwl->prefetch_buffer.buffer[pfwl->prefetch_buffer.top++ % PREFETCH_BUFFER_CAPACITY];
+        node_t *n2 = worklist_pop(&pfwl->worklist);
+        /* Since we just popped an element, this will push into the prefetch buffer */
+        if (n2 != NULL)
+            prefetch_worklist_push(pfwl, n2);
     }
     else {
         /* Fill up prefetch buffer */
